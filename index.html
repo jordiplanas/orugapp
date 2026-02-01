@@ -98,8 +98,14 @@
 
         function obrirAjuda() { document.getElementById("modalAjuda").style.display = "block"; }
         function tancarAjuda() { document.getElementById("modalAjuda").style.display = "none"; }
-        function localitzarUsuari() { map.locate({setView: true, maxZoom: 17}); }
-
+       // function localitzarUsuari() { map.locate({setView: true, maxZoom: 17}); }
+        function localitzarUsuari() {
+            map.locate({
+                setView: true, 
+                maxZoom: 17,
+                enableHighAccuracy: true // Això ajuda a que el GPS de l'iPhone es desperti
+            });
+        }
         map.on('locationfound', (e) => { 
             L.circle(e.latlng, {radius: 12, color: '#1976D2', fillOpacity: 0.4}).addTo(map); 
         });
@@ -145,4 +151,5 @@
         }
     </script>
 </body>
+
 </html>
