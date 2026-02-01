@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Alerta Erugues Bellaterra 🐛</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* Reset i base */
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
+        #map { height: 100vh; width: 100%; z-index: 1; }
+        
+        /* Panell superior més compacte per mòbil */
+        .instruccions {
+            position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: rgba(255, 255, 255, 0.9);
+            padding: 8px 15px; border-radius: 20px; font-size: 14px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15); width: 85%; max-width: 300px;
+            text-align: center; pointer-events: none; /* No molesta si el prems per error */
+        }
+
+        /* Botons grans per a dits */
+        .botons-control { 
+            position: absolute; bottom: 40px; right: 15px; 
+            z-index: 1000; display: flex; flex-direction: column; gap: 15px; 
+        }
+        
+        button { 
+            min-height: 48px; min-width: 48px; cursor: pointer; border-radius: 12px; border: none;
+            background: #fff; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            display: flex; align-items: center; justify-content: center; font-size: 16px;
+        }
+        
+        .btn-gps { border: 2px solid #1976D2; color: #1976D2; padding: 0 15px; }
+        .btn-help { background: #333; color: white; width: 50px; border-radius: 50%; font-size: 20px; align-self: flex-end; }
+
+        /* Pop-ups de Leaflet amigables per mòbil */
+        .leaflet-popup-content { font-size: 16px !important; width: 220px !important; }
+        select { width: 100%; padding: 10px; font-size: 16px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ccc; }
+        
+        /* Modal d'ajuda */
+        .modal {
+            display: none; position: fixed; z-index: 2000;
+            left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7);
+        }
+        .modal-content {
+            background: white; margin: 15% auto; padding: 25px;
+            border-radius: 20px; width: 90%; max-width: 350px; text-align: center;
+        }
+        .btn-tancar { background: #444; color: white; width: 100%; padding: 12px; border-radius: 10px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="instruccions">Toca el mapa per marcar un avís</div>
+    <div id="map"></div>
+
+    <div class="botons-control">
+        <button class="btn-help" onclick="obrirAjuda()">?</button>
+        <button class="btn-gps" onclick="localitzarUsuari()">📍 On sóc?</button>
+    </div>
+
+    <div id="modalAjuda" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-top:0">Projecte Comunitari 🐾</h2>
+            <p>Ajuda els veïns de <b>Bellaterra</b> a passejar segurs.</p>
+            <p>Si veus processionària o verí, marca-ho. Si veus que ja no hi és, esborra-ho.</p>
+            <button class="btn-tancar" onclick="tancarAjuda()">Som-hi!</button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyApPHLblJrQxbtBKUhA6Ag989DaFEP6SV4",
+            authDomain: "orugapp-6bbea.firebaseapp.com",
+            databaseURL: "https://orugapp-6bbea-default-rtdb.europe-west1.firebasedatabase.app", 
+            projectId: "orugapp-6bbea",
+            storageBucket: "orugapp-6bbea.firebasestorage.app",
+            messagingSenderId: "411139097451",
+            appId: "1:411139097451:web:9b5a77d8f677572caac22e"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        const map = L.map('map', { zoomControl: false }).setView([41.502, 2.090], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        const iconos = { procesionaria: '🐛', veneno: '⚠️', otros: '🗑️' };
+
+        function obrirAjuda() { document.getElementById("modalAjuda").style.display = "block"; }
+        function tancarAjuda() { document.getElementById("modalAjuda").style.display = "none"; }
+        function localitzarUsuari() { map.locate({setView: true, maxZoom: 17}); }
+
+        map.on('locationfound', (e) => { 
+            L.circle(e.latlng, {radius: 12, color: '#1976D2', fillOpacity: 0.4}).addTo(map); 
+        });
+
+        map.on('click', function(e) {
+            const lat = e.latlng.lat.toFixed(5);
+            const lng = e.latlng.lng.toFixed(5);
+            const popupContent = `
+                <div style="text-align:center">
+                    <b>Què has vist?</b><br><br>
+                    <select id="tipoPeligro">
+                        <option value="procesionaria">🐛 Processionària</option>
+                        <option value="veneno">⚠️ Verí / Esquers</option>
+                        <option value="otros">🗑️ Altres perills</option>
+                    </select>
+                    <button onclick="guardarAviso(${lat}, ${lng})" style="background:#4CAF50; color:white; width:100%; border-radius:8px">Publicar avís</button>
+                </div>`;
+            L.popup().setLatLng(e.latlng).setContent(popupContent).openOn(map);
+        });
+
+        function guardarAviso(lat, lng) {
+            const tipo = document.getElementById('tipoPeligro').value;
+            database.ref('avisos').push({ tipo, lat, lng, fecha: new Date().toISOString() });
+            map.closePopup();
+        }
+
+        database.ref('avisos').on('child_added', (snapshot) => {
+            const datos = snapshot.val();
+            const id = snapshot.key;
+            L.marker([datos.lat, datos.lng]).addTo(map)
+                .bindPopup(`
+                    <b>${iconos[datos.tipo] || '📍'} ${datos.tipo.toUpperCase()}</b><br>
+                    <small>${new Date(datos.fecha).toLocaleString('ca-ES')}</small><br><br>
+                    <button onclick="eliminarAviso('${id}')" style="color:red; background:none; border:1px solid red; width:100%; padding:8px; border-radius:5px">Ja no hi és</button>
+                `);
+        });
+
+        function eliminarAviso(id) {
+            if(confirm("Confirmes que el perill ha desaparegut?")) {
+                database.ref('avisos/' + id).remove();
+                location.reload(); 
+            }
+        }
+    </script>
+</body>
+</html>
